@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>📝 Submit Disaster Report</title>
+  <link rel="stylesheet" href="report.css" />
+</head>
+<body>
+  <a href="index.html" class="back-button">🔙 Back to Dashboard</a>
+  <div class="container">
+    <h1>📝 Submit Disaster Report</h1>
+
+    <form id="reportForm">
+      <label for="disaster_id">🆔 Disaster ID</label>
+      <input type="text" id="disaster_id" name="disaster_id" required />
+
+      <label for="user_id">👤 User ID</label>
+      <input type="text" id="user_id" name="user_id" required />
+
+      <label for="content">🧾 Report Content</label>
+      <textarea id="content" name="content" rows="4" required></textarea>
+
+      <label for="image_url">🌆 Image URL</label>
+      <input type="url" id="image_url" name="image_url" required />
+
+      <button type="submit">🚀 Submit Report</button>
+    </form>
+
+    <div id="message" class="success-message"></div>
+    <div id="error" class="error-message"></div>
+    <div id="verification-status" class="verify-status"></div>
+
+    <hr />
+
+    <h2>📋 Existing Reports</h2>
+    <ul id="existingReports"></ul>
+  </div>
+
+  <script>
+    const form = document.getElementById('reportForm');
+    const messageEl = document.getElementById('message');
+    const errorEl = document.getElementById('error');
+    const verificationEl = document.getElementById('verification-status');
+    const existingReportsEl = document.getElementById('existingReports');
+
+    // Submit new report
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      messageEl.textContent = '';
+      errorEl.textContent = '';
+      verificationEl.textContent = '';
+
+      const data = {
+        disaster_id: document.getElementById('disaster_id').value.trim(),
+        user_id: document.getElementById('user_id').value.trim(),
+        content: document.getElementById('content').value.trim(),
+        image_url: document.getElementById('image_url').value.trim()
+      };
+
+      try {
+        const response = await fetch('http://localhost:5000/reports', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+          messageEl.textContent = '✅ Report submitted successfully!';
+          verificationEl.innerHTML = `🔍 Verifying image...`;
+
+          // Call Gemini for image verification
+          const verifyRes = await fetch('http://localhost:5000/verify-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image_url: data.image_url, report_id: result.id })
+          });
+
+          const verifyData = await verifyRes.json();
+
+          verificationEl.innerHTML = `
+            <strong>🔍 Verification Status:</strong> ${verifyData.verification_status || 'Pending'}<br/>
+            <strong>🧠 AI Result:</strong> ${verifyData.explanation || 'No explanation'}`;
+
+          form.reset();
+          loadReports();
+        } else {
+          errorEl.textContent = result.error || '❌ Failed to submit report';
+        }
+      } catch (err) {
+        errorEl.textContent = '❌ Error connecting to server';
+      }
+    });
+
+    // Load existing reports
+    async function loadReports() {
+      try {
+        const res = await fetch('http://localhost:5000/reports');
+        const reports = await res.json();
+        existingReportsEl.innerHTML = '';
+
+        reports.forEach(report => {
+          const li = document.createElement('li');
+          li.innerHTML = `
+            🧾 <strong>${report.content}</strong><br />
+            🆔 Disaster: ${report.disaster_id} | 👤 User: ${report.user_id}<br />
+            🌆 <a href="${report.image_url}" target="_blank">View Image</a><br />
+            🔍 <em>Status:</em> <span id="status-${report.id}">${report.verification_status || 'Pending'}</span><br/>
+
+            <label for="status-select-${report.id}">Update Status:</label>
+            <select id="status-select-${report.id}">
+              <option value="verified">✅ Verified</option>
+              <option value="pending">🕒 Pending</option>
+              <option value="manipulated">🚫 Fake/Manipulated</option>
+            </select>
+            <button onclick="updateStatus('${report.id}')">✅ Update Status</button>
+            <button onclick="verifyImage('${report.image_url}', '${report.id}')">🔎 Verify Image</button>
+            <hr />
+          `;
+          existingReportsEl.appendChild(li);
+        });
+      } catch (err) {
+        existingReportsEl.innerHTML = '<li>❌ Failed to load reports.</li>';
+      }
+    }
+
+    async function updateStatus(id) {
+      const newStatus = document.getElementById(`status-select-${id}`).value;
+      try {
+        const res = await fetch(`http://localhost:5000/reports/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ verification_status: newStatus })
+        });
+
+        const result = await res.json();
+        if (res.ok) {
+          document.getElementById(`status-${id}`).textContent = newStatus;
+          alert('✅ Status updated');
+        } else {
+          alert('❌ Failed to update status');
+        }
+      } catch (err) {
+        alert('❌ Server error while updating status');
+      }
+    }
+
+    async function verifyImage(image_url, report_id) {
+      try {
+        const res = await fetch('http://localhost:5000/verify-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image_url, report_id })
+        });
+
+        const result = await res.json();
+        if (result.verification_status) {
+          document.getElementById(`status-${report_id}`).textContent = result.verification_status;
+          alert(`✅ AI Verification: ${result.verification_status}\n🧠 ${result.explanation}`);
+        } else {
+          alert('❌ Verification failed');
+        }
+      } catch (err) {
+        alert('❌ Error verifying image');
+      }
+    }
+
+    loadReports();
+  </script>
+</body>
+</html>

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>🌐 Disaster Live Dashboard</title>
+  <link rel="stylesheet" href="live.css" />
+</head>
+<body>
+  <a href="index.html" class="back-button">🔙 Back to Dashboard</a>
+
+  <div class="container">
+    <h1>🌍 Disaster Live Dashboard</h1>
+
+    <section>
+      <h2>🌀 Disasters</h2>
+      <ul id="disaster-list"></ul>
+    </section>
+
+    <section>
+      <h2>📡 Live Social Media Feed</h2>
+      <ul id="feed"><li>Loading...</li></ul>
+    </section>
+
+    <section>
+      <h2>📦 Resources</h2>
+      <ul id="resource-list"></ul>
+    </section>
+
+    <section>
+      <h2>✅ Verified Reports</h2>
+      <ul id="verified-reports"></ul>
+    </section>
+
+    <section>
+      <h2>🔔 Official Updates</h2>
+      <ul id="official-updates"></ul>
+    </section>
+  </div>
+
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script>
+    const socket = io('http://localhost:5000');
+    const feed = document.getElementById('feed');
+    const disasterList = document.getElementById('disaster-list');
+    let currentDisasterId = null;
+
+    socket.on('social_media_updated', data => {
+      if (data.disasterId === currentDisasterId) {
+        renderFeed(data.posts);
+      }
+    });
+
+    socket.on('resource_updated', () => {
+      loadResources();
+    });
+
+    async function loadDisasters() {
+      try {
+        const res = await fetch('http://localhost:5000/disasters');
+        const disasters = await res.json();
+        disasterList.innerHTML = '';
+        if (disasters.length === 0) {
+          disasterList.innerHTML = '<li>❌ No disasters found</li>';
+          return;
+        }
+
+        disasters.forEach(d => {
+          const li = document.createElement('li');
+          li.innerHTML = `<button onclick="selectDisaster('${d.id}')">${d.title} - ${d.location_name}</button>`;
+          disasterList.appendChild(li);
+        });
+
+        // Auto-load first disaster's posts
+        selectDisaster(disasters[0].id);
+      } catch (err) {
+        disasterList.innerHTML = '<li>❌ Failed to load disasters.</li>';
+      }
+    }
+
+    async function selectDisaster(id) {
+      currentDisasterId = id;
+      try {
+        const res = await fetch(`http://localhost:5000/socialMedia/${id}`);
+        const posts = await res.json();
+        renderFeed(posts);
+      } catch {
+        feed.innerHTML = '<li>❌ Failed to load social media posts.</li>';
+      }
+    }
+
+    function renderFeed(posts) {
+      feed.innerHTML = '';
+      if (!posts.length) {
+        feed.innerHTML = '<li>No posts found for this disaster</li>';
+        return;
+      }
+      posts.forEach(post => {
+        const li = document.createElement('li');
+        li.textContent = `${post.user}: ${post.post}`;
+        feed.appendChild(li);
+      });
+    }
+
+    async function loadResources() {
+      const res = await fetch('http://localhost:5000/resources');
+      const resources = await res.json();
+      const list = document.getElementById('resource-list');
+      list.innerHTML = '';
+      resources.forEach(r => {
+        const li = document.createElement('li');
+        li.textContent = `${r.name} (${r.type}) - ${r.location_name}`;
+        list.appendChild(li);
+      });
+    }
+
+    async function loadVerifiedReports() {
+      const res = await fetch('http://localhost:5000/reports');
+      const reports = await res.json();
+      const list = document.getElementById('verified-reports');
+      list.innerHTML = '';
+      reports
+        .filter(r => r.verification_status?.toLowerCase() === 'verified')
+        .forEach(r => {
+          const li = document.createElement('li');
+          li.innerHTML = `
+            🧾 <strong>${r.content}</strong><br/>
+            👤 ${r.user_id} | 🌆 <a href="${r.image_url}" target="_blank">Image</a>
+          `;
+          list.appendChild(li);
+        });
+    }
+
+    async function loadOfficialUpdates() {
+      const res = await fetch('http://localhost:5000/official-updates');
+      const updates = await res.json();
+      const list = document.getElementById('official-updates');
+      list.innerHTML = '';
+      updates.forEach(update => {
+        const li = document.createElement('li');
+        const a = document.createElement('a');
+        a.href = update.link;
+        a.textContent = update.title;
+        a.target = "_blank";
+        li.appendChild(a);
+        list.appendChild(li);
+      });
+    }
+
+    loadDisasters();
+    loadResources();
+    loadVerifiedReports();
+    loadOfficialUpdates();
+  </script>
+</body>
+</html>

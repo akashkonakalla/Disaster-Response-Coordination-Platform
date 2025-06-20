@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🚑 Manage Resources</title>
+  <link rel="stylesheet" href="resource.css" />
+  <a href="index.html" class="back-button">🔙 Back to Dashboard</a>
+</head>
+<body>
+  <div class="container">
+    <h1>🚑 Add Disaster Resource</h1>
+
+    <form id="resourceForm">
+      <label for="disaster_id">🆔 Disaster ID</label>
+      <input type="text" id="disaster_id" name="disaster_id" required />
+
+      <label for="name">🏷️ Resource Name</label>
+      <input type="text" id="name" name="name" required />
+
+      <label for="location_name">📍 Location Name</label>
+      <input type="text" id="location_name" name="location_name" required />
+
+      <label for="type">🛠️ Resource Type</label>
+      <input type="text" id="type" name="type" required />
+
+      <button type="submit">➕ Add Resource</button>
+    </form>
+
+    <div id="message" class="success-message"></div>
+    <div id="error" class="error-message"></div>
+
+    <hr />
+
+    <h2>📋 Existing Resources</h2>
+    <ul id="existingResources"></ul>
+  </div>
+
+  <script>
+    const form = document.getElementById('resourceForm');
+    const messageEl = document.getElementById('message');
+    const errorEl = document.getElementById('error');
+    const existingResourcesEl = document.getElementById('existingResources');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      messageEl.textContent = '';
+      errorEl.textContent = '';
+
+      const data = {
+        disaster_id: document.getElementById('disaster_id').value.trim(),
+        name: document.getElementById('name').value.trim(),
+        location_name: document.getElementById('location_name').value.trim(),
+        type: document.getElementById('type').value.trim()
+      };
+
+      try {
+        const response = await fetch('http://localhost:5000/resources', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+        if (response.ok) {
+          messageEl.textContent = '✅ Resource added successfully!';
+          form.reset();
+          loadResources();
+        } else {
+          errorEl.textContent = result.error || '❌ Failed to add resource';
+        }
+      } catch (err) {
+        errorEl.textContent = '❌ Error connecting to server';
+      }
+    });
+
+    async function loadResources() {
+      try {
+        const res = await fetch('http://localhost:5000/resources');
+        const resources = await res.json();
+        existingResourcesEl.innerHTML = '';
+
+        resources.forEach(resource => {
+          const li = document.createElement('li');
+          li.innerHTML = `
+            🏷️ <strong>${resource.name}</strong> (${resource.type})<br />
+            🆔 Disaster: ${resource.disaster_id} | 📍 ${resource.location_name}
+          `;
+          existingResourcesEl.appendChild(li);
+        });
+      } catch (err) {
+        existingResourcesEl.innerHTML = '<li>❌ Failed to load resources.</li>';
+      }
+    }
+
+    loadResources();
+  </script>
+</body>
+</html>
